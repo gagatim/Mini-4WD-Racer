@@ -29,7 +29,7 @@ h2{margin:14px 0 8px;font-size:14px;color:var(--dim);font-weight:600;letter-spac
 .grid{display:grid;grid-template-columns:1fr 240px;gap:14px}
 @media(max-width:700px){.grid{grid-template-columns:1fr}}
 .stats .s{display:flex;align-items:center;gap:8px;font-size:13px;margin:5px 0}
-.stats .s span{width:42px;color:var(--dim)}
+.stats .s span{width:58px;color:var(--dim)}
 .bar{flex:1;height:9px;background:#0d1018;border-radius:5px;overflow:hidden}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,#ffb020,#ff6a3d)}
 button.go{background:var(--acc);color:#1a1200;border:0;border-radius:12px;font-weight:800;font-size:17px;padding:13px 26px;cursor:pointer;margin-top:14px}
@@ -39,6 +39,9 @@ button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)
 .res{font-size:46px;font-weight:900;margin:4px 0}
 table{width:100%;border-collapse:collapse;margin:8px 0;font-size:15px}
 td{padding:6px 8px;border-bottom:1px solid var(--line)}
+.startwrap{margin-top:14px}
+.startwrap .go{margin-top:0}
+@media(max-width:700px){.startwrap{position:sticky;bottom:-18px;background:linear-gradient(rgba(26,31,43,0),var(--panel) 35%);padding:16px 0 6px;z-index:3}.startwrap .go{width:100%}}
 #throttle{position:fixed;right:14px;bottom:14px;width:92px;height:92px;border-radius:50%;background:rgba(255,176,32,.85);color:#1a1200;font-weight:900;font-size:15px;display:none;align-items:center;justify-content:center;border:4px solid #fff3;touch-action:none}
 #throttle.on{background:var(--ok)}
 #mute{position:fixed;top:8px;right:8px;background:#0006;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:5px 9px;font-size:14px;cursor:pointer;z-index:5}
@@ -54,7 +57,7 @@ td{padding:6px 8px;border-bottom:1px solid var(--line)}
     <span class="coins" id="coins"></span>
     <h1>🏎️ 四驅車大賽</h1>
     <div class="sub">改裝你的四驅車 → 衝線。<b>按住 空白鍵 / 滑鼠 / 螢幕 = 全速，放開 = 煞車</b>。進彎太快「彎道負荷」爆表就會飛出賽道！</div>
-    <div class="tip">💡 新手提示：比賽時路面會亮<b style="color:#ff6b78">紅色＝現在就該煞車</b>、<b style="color:#ffc95a">黃色＝前方有彎</b>。放開油門煞車，過彎後再按住。</div>
+    <div class="tip">💡 新手提示：比賽時路面會亮<b style="color:#ff6b78">紅色＝照現在速度過去會飛出去</b>、<b style="color:#ffc95a">黃色＝接近極限</b>。看到就放開油門，過彎後再按住。</div>
     <div class="grid">
       <div>
         <h2>賽道</h2><div class="row" id="tracks"></div>
@@ -67,8 +70,9 @@ td{padding:6px 8px;border-bottom:1px solid var(--line)}
       <div>
         <canvas id="preview" width="240" height="130" style="width:100%;background:#0d1018;border-radius:10px"></canvas>
         <div class="stats" id="stats"></div>
+        <div class="sub" style="margin-top:6px">抓地＋穩定越高，「彎道極限」越高；用超過極限的速度過彎就會飛出去。</div>
         <div class="sub" style="margin-top:10px">🏆 本賽道最佳：<b id="best">--</b></div>
-        <button class="go" id="start">開始比賽 ▶</button>
+        <div class="startwrap"><button class="go" id="start">開始比賽 ▶</button></div>
       </div>
     </div>
   </div>
@@ -120,9 +124,13 @@ const FX = [
   {id:"f2",name:"霓虹青尾跡",cost:300,d:"青色光軌"},
   {id:"f3",name:"彩虹尾跡",cost:500,d:"七彩光軌"}
 ];
-const COLORS = ["#e5322d","#2d7de5","#27b36a","#f2c200","#a64de0","#ff7a1a","#14c8d6","#f0f0f0"];
-const AI_NAMES = ["紅閃電","藍旋風","綠獵豹"];
-const AI_COLORS = ["#e5322d","#2d7de5","#27b36a"];
+const COLORS = ["#f0f0f0","#e5322d","#2d7de5","#27b36a","#f2c200","#a64de0","#ff7a1a","#14c8d6"];
+const AIS = [
+  {n:"紅閃電",c:"#e5322d",alt:{n:"粉紅閃電",c:"#ff8fb1"}},
+  {n:"藍旋風",c:"#2d7de5",alt:{n:"深藍旋風",c:"#0a3d8f"}},
+  {n:"綠獵豹",c:"#27b36a",alt:{n:"萊姆獵豹",c:"#a8e63d"}}
+];
+function AI_DEF(i){const d=AIS[i];return d.c===save.eq.c?d.alt:d;}
 
 // ============ 存檔 ============
 const SAVE_KEY = "mini4wd-racer-v1";
@@ -195,7 +203,7 @@ function startRace(){
   for(let i=0;i<3;i++){
     const g=5+lvl*1.3+i*.35, sb=3+lvl*1.8+i*.5;
     const ai={grip:g,stab:sb};
-    cars.push(makeCar({name:AI_NAMES[i],color:AI_COLORS[i],vmax:300+lvl*65+i*22+Math.random()*12,acc:250+lvl*45+i*20,limit:limitOf(ai),
+    cars.push(makeCar({name:AI_DEF(i).n,color:AI_DEF(i).c,vmax:300+lvl*65+i*22+Math.random()*12,acc:250+lvl*45+i*20,limit:limitOf(ai),
       margin:.9+Math.random()*.09+lvl*.015,lane:lanes[i],s0:-(i)*26}));
   }
   cars.push(player);
@@ -258,16 +266,20 @@ function spark(c,r){
 
 // ============ 繪圖 ============
 const cv=document.getElementById("game"),g=cv.getContext("2d");
-let W=0,H=0,DPR=1,SC=1,OX=0,OY=0;
+let W=0,H=0,DPR=1,SC=1,OX=0,OY=0,ROT=false;
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
   cv.width=W*DPR;cv.height=H*DPR;
   const topPad=56,botPad=64;
-  SC=Math.min(W/1040,(H-topPad-botPad)/740);
-  OX=(W-1040*SC)/2+20*SC;OY=topPad+((H-topPad-botPad)-740*SC)/2+20*SC;
+  const avH=H-topPad-botPad;
+  ROT=H>W*1.15;
+  if(ROT){SC=Math.min(W/780,avH/1080);OX=(W-740*SC)/2;OY=topPad+(avH-1040*SC)/2;}
+  else{SC=Math.min(W/1040,avH/740);OX=(W-1040*SC)/2+20*SC;OY=topPad+(avH-740*SC)/2+20*SC;}
 }
 addEventListener("resize",resize);resize();
 
+function world(){g.translate(OX,OY);g.scale(SC,SC);if(ROT){g.translate(740,0);g.rotate(Math.PI/2);}}
+function wtext(str,x,y,dy){g.save();g.translate(x,y);if(ROT)g.rotate(-Math.PI/2);g.fillText(str,0,dy);g.restore();}
 function trackPath(c,T_){
   c.beginPath();
   for(let k=0;k<T_.K;k+=4){const x=T_.X[k],y=T_.Y[k];k?c.lineTo(x,y):c.moveTo(x,y);}
@@ -289,15 +301,15 @@ function render(){
   if(!T){ // 車庫背景用預設賽道
     drawBackdrop();return;
   }
-  g.save();g.translate(OX,OY);g.scale(SC,SC);
+  g.save();world();
   drawTrack(T);
   drawBrakeZones();
   const sorted=[...cars].sort((a,b)=>a.s-b.s);
   for(const c of sorted){
-    if(c.state==="crash"){drawCar(g,c.cx,c.cy,c.cang,c.color,1.6,false);g.fillStyle="#fff";g.font="bold 14px system-ui";g.textAlign="center";g.fillText(c.shout||"",c.cx,c.cy-18);continue;}
+    if(c.state==="crash"){drawCar(g,c.cx,c.cy,c.cang,c.color,1.6,false);g.fillStyle="#fff";g.font="bold 14px system-ui";g.textAlign="center";wtext(c.shout||"",c.cx,c.cy,-18);continue;}
     const P=at(T,c.s,c.lane);
     drawCar(g,P.x,P.y,P.a,c.color,1.6,c.human);
-    if(c.human){g.fillStyle="#fff";g.font="bold 13px system-ui";g.textAlign="center";g.fillText("▼ 你",P.x,P.y-16);}
+    if(c.human){g.fillStyle="#fff";g.font="bold 13px system-ui";g.textAlign="center";wtext("▼ 你",P.x,P.y,-16);}
   }
   for(const p of particles){g.globalAlpha=Math.max(0,p.t*2);g.fillStyle=p.c;const z=p.z||3;g.fillRect(p.x-z/2,p.y-z/2,z,z);}
   g.globalAlpha=1;
@@ -307,22 +319,24 @@ function render(){
 function drawBrakeZones(){
   if(phase!=="race"||!player||player.state!=="run")return;
   const v=player.v,f0=Math.floor(((player.s/T.ds)%T.K+T.K)%T.K);
-  const reach=Math.ceil((v*v/(2*BRAKE)+110)/T.ds*1.5);
-  g.lineCap="butt";g.lineWidth=40;
-  for(let k=6;k<reach;k+=4){
-    const i=(f0+k)%T.K,j=(i+4)%T.K,d=k*T.ds;
-    const vreq=Math.sqrt(player.limit*.98/Math.max(T.kap[i],1e-4));
-    const must=Math.sqrt(vreq*vreq+2*BRAKE*d)<v;
-    if(!must&&vreq>player.vmax*1.02)continue;
-    g.strokeStyle=must?"rgba(255,77,94,.55)":"rgba(255,201,90,.28)";
-    g.beginPath();g.moveTo(T.X[i],T.Y[i]);g.lineTo(T.X[j],T.Y[j]);g.stroke();
+  const reach=Math.ceil((v*1.3+60)/T.ds);
+  g.lineCap="round";g.lineWidth=36;
+  let run=null;
+  const flush=()=>{if(!run)return;g.strokeStyle=run.c;g.beginPath();run.p.forEach((q,i)=>i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.stroke();run=null;};
+  for(let k=8;k<=reach;k+=3){
+    const i=(f0+k)%T.K,r=v*v*T.kap[i]/player.limit;
+    const col=r>1?"rgba(255,77,94,.62)":r>.8?"rgba(255,190,60,.45)":null;
+    if(!col){flush();continue;}
+    if(run&&run.c!==col)flush();
+    if(!run)run={c:col,p:[]};
+    run.p.push([T.X[i],T.Y[i]]);
   }
-  g.lineCap="round";
+  flush();
 }
 let backdropT=null;
 function drawBackdrop(){
   if(!backdropT)backdropT=buildTrack(TRACKS[0]);
-  g.save();g.translate(OX,OY);g.scale(SC,SC);g.globalAlpha=.5;drawTrack(backdropT);g.restore();
+  g.save();world();g.globalAlpha=.5;drawTrack(backdropT);g.restore();
 }
 function drawTrack(T_){
   g.lineJoin="round";g.lineCap="round";
@@ -345,7 +359,7 @@ function drawHUD(){
   g.textAlign="right";g.fillStyle="#8f9ab3";g.font="13px system-ui";
   g.fillText(`${Math.round(player.v/3)} km/h`,W-52,30);
   // 彎道負荷
-  const bw=Math.min(260,W-40),bx=(W-bw)/2,by=H-44;
+  const narrow=W<560,bw=narrow?W-140:Math.min(260,W-40),bx=narrow?16:(W-bw)/2,by=H-44;
   const r=Math.min(1.3,(player.ratio||0));
   g.fillStyle="rgba(10,12,18,.7)";g.fillRect(bx-8,by-22,bw+16,44);
   g.fillStyle="#8f9ab3";g.font="12px system-ui";g.textAlign="left";g.fillText("彎道負荷",bx,by-6);
@@ -380,6 +394,7 @@ function loop(now){
   particles=particles.filter(p=>p.t>0);
   document.getElementById("throttle").classList.toggle("on",btnDown);
   engineUpdate();
+  $("mute").style.display=(phase==="garage"||phase==="result")?"none":"block";
   render();
   requestAnimationFrame(loop);
 }
@@ -396,15 +411,15 @@ function showResult(){
   });
   const rank=order.indexOf(player)+1;
   const tr=TRACKS[save.track];
-  const prize=Math.round([300,180,100,40][rank-1]*tr.prize);
+  const prize=Math.round([300,180,100,80][rank-1]*tr.prize);
   save.coins+=prize;
   const t=player.fin,bk=String(save.track);
-  let newBest=false;if(!save.best[bk]||t<save.best[bk]){save.best[bk]=t;newBest=true;}
+  let newBest=false;const prev=save.best[bk];if(!prev||t<prev){save.best[bk]=t;newBest=!!prev;}
   persist();
   document.getElementById("rank").textContent=["🥇 第 1 名","🥈 第 2 名","🥉 第 3 名","第 4 名"][rank-1];
   document.getElementById("rank").style.color=rank===1?"#ffb020":"#eef1f7";
   document.getElementById("rtime").textContent=`完賽時間 ${t.toFixed(2)}s`+(newBest?"　🎉 新紀錄！":"")+`　飛出 ${player.crashes} 次`;
-  document.getElementById("rtable").innerHTML=order.map((c,i)=>`<tr><td>${i+1}</td><td style="color:${c.color}">● ${c.name}</td><td style="text-align:right">${c.fin!==null?c.fin.toFixed(2)+"s":"—"}</td></tr>`).join("");
+  document.getElementById("rtable").innerHTML=order.map((c,i)=>`<tr style="${c.human?"background:#2d2a1c;font-weight:800":""}"><td>${i+1}</td><td style="color:${c.color}">● ${c.name}${c.human?" ◀":""}</td><td style="text-align:right">${c.fin!==null?c.fin.toFixed(2)+"s":"—"}</td></tr>`).join("");
   const Q={1:["冠軍！這台車該進博物館了 🏆","漂亮，AI 們正在檢討自己的馬達。"],2:["差一點點！下次把輪胎換軟一點？","銀牌很香，但金牌更香。"],3:["季軍。去車庫逛逛，買點好東西吧。","還行，至少沒有飛出場外。"],4:["最後一名…試試單層滾輪，穩住再衝。","別氣餒，車庫裡有零件在召喚你。"]}[rank];
   document.getElementById("quip").textContent=(player.crashes===0&&rank===1?"零失誤完美賽！ ":"")+Q[Math.floor(Math.random()*Q.length)];
   document.getElementById("prize").textContent="+"+prize+" 💰";
