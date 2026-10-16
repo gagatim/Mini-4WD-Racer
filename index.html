@@ -48,17 +48,19 @@ td{padding:6px 8px;border-bottom:1px solid var(--line)}
 @media(max-width:700px){.startwrap .go{width:100%}}
 #throttle{position:fixed;right:14px;bottom:14px;width:92px;height:92px;border-radius:50%;background:rgba(255,176,32,.85);color:#1a1200;font-weight:900;font-size:15px;display:none;align-items:center;justify-content:center;border:4px solid #fff3;touch-action:none}
 #throttle.on{background:var(--ok)}
+#pause{display:none;position:fixed;top:8px;right:56px;background:#0006;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:5px 9px;font-size:14px;cursor:pointer;z-index:5}
 #mute{position:fixed;top:8px;right:8px;background:#0006;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:5px 9px;font-size:14px;cursor:pointer;z-index:5}
 </style>
 </head>
 <body>
 <canvas id="game" role="img" aria-label="四驅車賽道畫面：按住空白鍵或螢幕加速，放開煞車"></canvas>
+<button id="pause" title="暫停 (P)" aria-label="暫停">⏸</button>
 <button id="mute" title="音效">🔊</button>
 <div id="throttle">油門</div>
 
 <div id="garage" class="overlay show">
   <div class="card">
-    <span class="coins" id="coins"></span>
+    <span class="coins" id="coins"></span><button class="ghost" id="mute2" aria-label="音效開關" style="float:right;margin:0 10px 0 0;padding:2px 9px">🔊</button>
     <h1>🏎️ 四驅車大賽</h1>
     <div class="sub">改裝你的四驅車 → 衝線。<b>按住 空白鍵 / 滑鼠 / 螢幕 = 全速，放開 = 煞車</b>。進彎太快「彎道負荷」爆表就會飛出賽道！</div>
     <div class="tip">💡 新手提示：比賽時路面會亮<b style="color:#ff6b78">紅色＝照現在速度過去會飛出去</b>、<b style="color:#ffc95a">黃色＝接近極限</b>。看到就放開油門，過彎後再按住。</div>
@@ -75,7 +77,8 @@ td{padding:6px 8px;border-bottom:1px solid var(--line)}
         <canvas id="preview" width="240" height="130" style="width:100%;background:#0d1018;border-radius:10px"></canvas>
         <div class="stats" id="stats"></div>
         <div class="sub" style="margin-top:6px">抓地＋穩定越高，「彎道極限」越高；用超過極限的速度過彎就會飛出去。</div>
-        <div class="sub" style="margin-top:10px">🏆 本賽道最佳：<b id="best">--</b></div>
+        <label class="sub" style="display:flex;gap:6px;align-items:center;margin-top:8px;cursor:pointer"><input type="checkbox" id="practice"> 練習模式（無對手・不給獎金）</label>
+        <div class="sub" style="margin-top:6px">🏆 本賽道最佳：<b id="best">--</b></div>
         </div>
     </div>
     <div class="startwrap"><button class="go" id="start">開始比賽 ▶</button></div>
@@ -102,7 +105,8 @@ const TRACKS = [
   {id:0,name:"新手環道",desc:"寬緩彎道",lvl:0,prize:1.0,pts:[[150,150],[450,100],[750,140],[880,260],[780,380],[560,330],[500,450],[640,560],[500,630],[250,600],[120,480],[250,380],[110,300]]},
   {id:1,name:"蛇行山道",desc:"連續 S 彎",lvl:1,prize:1.4,pts:[[120,120],[380,90],[500,200],[360,290],[560,380],[820,300],[900,450],[760,600],[520,520],[360,620],[140,580],[80,380],[200,260]]},
   {id:2,name:"極限髮夾",desc:"高速+急彎",lvl:2,prize:2.0,pts:[[100,110],[620,80],[900,150],[920,330],[700,360],[900,470],[860,620],[560,640],[600,500],[380,560],[300,650],[110,620],[130,430],[330,330],[160,260]]},
-  {id:3,name:"斷頭髮夾",desc:"長直線→U型髮夾→S彎",lvl:2,prize:2.2,pts:[[180,90],[400,72],[650,88],[830,115],[930,125],[985,190],[945,250],[850,262],[760,310],[680,390],[600,330],[510,400],[400,470],[250,520],[120,450],[85,300],[110,170]]}
+  {id:3,name:"斷頭髮夾",desc:"長直線→U型髮夾→S彎",lvl:2,prize:2.2,pts:[[180,90],[400,72],[650,88],[830,115],[930,125],[985,190],[945,250],[850,262],[760,310],[680,390],[600,330],[510,400],[400,470],[250,520],[120,450],[85,300],[110,170]]},
+  {id:4,name:"終極環道",desc:"三連髮夾・技術型",lvl:3,prize:3.0,pts:[[120,620],[400,640],[700,630],[900,600],[985,520],[930,440],[800,430],[700,380],[720,320],[800,295],[930,285],[985,200],[920,115],[760,90],[620,135],[520,205],[440,135],[300,100],[160,130],[88,250],[80,400],[90,530]]}
 ];
 const MOTORS = [
   {id:"m0",name:"標準馬達",vmax:300,acc:240,cost:0},
@@ -141,10 +145,11 @@ function AI_DEF(i){const d=AIS[i];return d.c===save.eq.c?d.alt:d;}
 const SAVE_KEY = "mini4wd-racer-v1";
 let save = {coins:300,owned:["m0","t0","r0","f0"],eq:{m:"m0",t:"t0",r:"r0",c:COLORS[0],fx:"f0"},best:{},track:0};
 try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s&&s.eq) save=Object.assign(save,s);}catch(e){}
-save.eq.fx=save.eq.fx||"f0";if(!save.owned.includes("f0"))save.owned.push("f0");
+save.eq.fx=save.eq.fx||"f0";save.bestLap=save.bestLap||{};save.practice=!!save.practice;if(!save.owned.includes("f0"))save.owned.push("f0");
 function persist(){ try{localStorage.setItem(SAVE_KEY,JSON.stringify(save));}catch(e){} }
 const byId=(arr,id)=>arr.find(x=>x.id===id)||arr[0];
 
+const THEMES=[["#ff7a1a","#2a3142"],["#27b36a","#26342f"],["#e5322d","#35292d"],["#14c8d6","#24323a"],["#a64de0","#2b2840"]];
 function playerStats(){
   const m=byId(MOTORS,save.eq.m),t=byId(TIRES,save.eq.t),r=byId(ROLLERS,save.eq.r);
   return {vmax:m.vmax*t.mul*r.mul,acc:m.acc,grip:t.grip,stab:r.stab};
@@ -193,10 +198,10 @@ function at(T,s,off){
 // ============ 車子 ============
 function makeCar(opt){
   return {name:opt.name,color:opt.color,human:!!opt.human,vmax:opt.vmax,acc:opt.acc,limit:opt.limit,margin:opt.margin||1,
-    lane:opt.lane,s:opt.s0,v:0,over:0,state:"run",ct:0,cx:0,cy:0,cvx:0,cvy:0,cang:0,crashes:0,fin:null,thr:false,spin:0};
+    lane:opt.lane,s:opt.s0,v:0,over:0,state:"run",ct:0,cx:0,cy:0,cvx:0,cvy:0,cang:0,crashes:0,fin:null,thr:false,spin:0,lap:0,lapT:0,laps:[]};
 }
 let T=null,cars=[],player=null,phase="garage",raceT=0,countT=0,particles=[];
-let keyDown=false,ptrDown=false,btnDown=false;
+let keyDown=false,ptrDown=false,btnDown=false,paused=false,isPractice=false,lapFlash={t:0,text:""};
 
 function startRace(){
   T=buildTrack(TRACKS[save.track]);
@@ -206,12 +211,13 @@ function startRace(){
   // 起跑格：玩家在最後一格，需要追
   player=makeCar({name:"你",color:save.eq.c,human:true,vmax:st.vmax,acc:st.acc,limit:limitOf(st),lane:lanes[3],s0:-4*26});
   for(let i=0;i<3;i++){
-    const g=5+lvl*1.3+i*.35, sb=3+lvl*1.8+i*.5;
-    const ai={grip:g,stab:sb};
-    cars.push(makeCar({name:AI_DEF(i).n,color:AI_DEF(i).c,vmax:300+lvl*65+i*22+Math.random()*12,acc:250+lvl*45+i*20,limit:limitOf(ai),
-      margin:.9+Math.random()*.09+lvl*.015,lane:lanes[i],s0:-(i)*26}));
+    const L=AI_LVL[lvl],ai={grip:L.gr+i*.3,stab:L.sb+i*.4};
+    cars.push(makeCar({name:AI_DEF(i).n,color:AI_DEF(i).c,vmax:L.vm+i*14+Math.random()*10,acc:L.ac+i*12,limit:limitOf(ai),
+      margin:L.mg+Math.random()*.07,lane:lanes[i],s0:-(i)*26}));
   }
   cars.push(player);
+  isPractice=!!save.practice;paused=false;lapFlash={t:0,text:""};
+  if(isPractice){cars=[player];player.s=0;player.lane=0;}
   phase="count";countT=3.6;raceT=0;particles=[];
   hide("garage");hide("result");
   document.getElementById("throttle").style.display=("ontouchstart" in window)?"flex":"none";
@@ -221,7 +227,14 @@ function startRace(){
 
 // ============ 物理 ============
 const SHOUTS=["哇啊啊啊～","衝出去啦！","我的馬達！","媽，我飛起來了","轉彎是什麼？","煞車在哪？","別看我…"];
+// AI 難度表：每級對應「該級配件剛好打得贏」（見 build 掃描測試）
+const AI_LVL=[{vm:300,ac:250,gr:5,sb:3,mg:.9},{vm:350,ac:285,gr:5.8,sb:4.6,mg:.91},{vm:385,ac:300,gr:6.6,sb:5.8,mg:.92},{vm:405,ac:280,gr:6.9,sb:6.4,mg:.93}];
 const BRAKE=560, DECEL_AI=480;
+function togglePause(){
+  if(phase!=="race"&&phase!=="count")return;
+  paused=!paused;keyDown=ptrDown=btnDown=false;
+  $("pause").textContent=paused?"▶":"⏸";
+}
 function ctl(c){
   if(c.human) return keyDown||ptrDown||btnDown;
   const T_=T,f=((c.s/T_.ds)%T_.K+T_.K)%T_.K,i0=Math.floor(f);
@@ -245,6 +258,14 @@ function stepCar(c,dt){
   if(thr)c.v=Math.min(c.vmax,c.v+(c.acc*(1-c.v/(c.vmax*1.15)))*dt+30*dt);
   else c.v=Math.max(60,c.v-BRAKE*dt);
   c.s+=c.v*dt;
+  if(c.human){
+    const lp=Math.floor(Math.max(c.s,0)/T.L);
+    if(lp>c.lap&&lp<LAPS){
+      const lt=raceT-c.lapT,prevBest=Math.min(...c.laps,save.bestLap[String(save.track)]||Infinity);
+      c.lapT=raceT;c.lap=lp;c.laps.push(lt);
+      lapFlash={t:2.8,text:`第 ${lp} 圈 ${lt.toFixed(2)}s`+(lt<prevBest?"　★ 最佳":"")};
+    }
+  }
   const P=at(T,c.s,0),ratio=c.v*c.v*P.k/c.limit;
   c.ratio=ratio;
   if(ratio>1)c.over+=dt*(1+(ratio-1)*4);else c.over=Math.max(0,c.over-dt*.9);
@@ -263,7 +284,7 @@ function stepCar(c,dt){
     const col=f==="f1"?(Math.random()<.5?"#ff9d2e":"#ffd34d"):f==="f2"?"#33e6ff":`hsl(${(raceT*360)%360},95%,60%)`;
     particles.push({x:B.x,y:B.y,vx:0,vy:0,t:.5,c:col,z:f==="f1"?2.5:4});
   }
-  if(c.s>=LAPS*T.L){c.fin=raceT;if(c.human)beep(880,.3);}
+  if(c.s>=LAPS*T.L){c.fin=raceT;if(c.human){c.laps.push(raceT-c.lapT);beep(880,.3);}}
 }
 function spark(c,r){
   const Q=at(T,c.s,c.lane);
@@ -346,8 +367,9 @@ function drawBackdrop(){
 }
 function drawTrack(T_){
   g.lineJoin="round";g.lineCap="round";
-  trackPath(g,T_);g.strokeStyle="#ff7a1a";g.lineWidth=46;g.stroke();      // 護欄
-  trackPath(g,T_);g.strokeStyle="#2a3142";g.lineWidth=40;g.stroke();      // 路面
+  const th=THEMES[T_.def.id]||THEMES[0];
+  trackPath(g,T_);g.strokeStyle=th[0];g.lineWidth=46;g.stroke();      // 護欄
+  trackPath(g,T_);g.strokeStyle=th[1];g.lineWidth=40;g.stroke();      // 路面
   trackPath(g,T_);g.strokeStyle="#3a4358";g.lineWidth=2;g.setLineDash([10,14]);g.stroke();g.setLineDash([]);
   const P=at(T_,0,0);g.save();g.translate(P.x,P.y);g.rotate(P.a);
   for(let r=0;r<8;r++){g.fillStyle=r%2?"#fff":"#111";g.fillRect(-3,-20+r*5,3,5);g.fillStyle=r%2?"#111":"#fff";g.fillRect(0,-20+r*5,3,5);}
@@ -360,46 +382,49 @@ function drawHUD(){
   const order=[...cars].sort((a,b)=>(b.fin!==null?1e6-b.fin:b.s)-(a.fin!==null?1e6-a.fin:a.s));
   const pos=order.indexOf(player)+1;
   g.fillText(`圈數 ${lap}/${LAPS}`,12,30);
-  g.fillText(`名次 ${pos}/4`,110,30);
+  g.fillText(isPractice?"練習模式":`名次 ${pos}/4`,110,30);
   g.fillText(`${Math.max(0,raceT).toFixed(1)}s`,200,30);
-  g.textAlign="right";g.fillStyle="#8f9ab3";g.font="13px system-ui";
-  g.fillText(`${Math.round(player.v/3)} km/h`,W-52,30);
   // 彎道負荷
   const narrow=W<560,bw=narrow?W-140:Math.min(260,W-40),bx=narrow?16:(W-bw)/2,by=H-44;
   const r=Math.min(1.3,(player.ratio||0));
   g.fillStyle="rgba(10,12,18,.7)";g.fillRect(bx-8,by-22,bw+16,44);
-  g.fillStyle="#8f9ab3";g.font="12px system-ui";g.textAlign="left";g.fillText("彎道負荷",bx,by-6);
+  g.fillStyle="#8f9ab3";g.font="12px system-ui";g.textAlign="left";g.fillText("彎道負荷",bx,by-6);g.textAlign="right";g.fillText(`${Math.round(player.v/3)} km/h`,bx+bw,by-6);g.textAlign="left";
   g.fillStyle="#0d1018";g.fillRect(bx,by,bw,10);
   g.fillStyle=r>1?"#ff4d5e":r>.85?"#ffb020":"#3ddc84";g.fillRect(bx,by,bw*Math.min(1,r/1.0)*.9,10);
   g.fillStyle="#fff6";g.fillRect(bx+bw*.9,by-2,2,14);
   if(player.state==="crash"){g.fillStyle="#ff4d5e";g.font="bold 26px system-ui";g.textAlign="center";g.fillText("飛出賽道！",W/2,100);}
+  if(lapFlash.t>0){g.globalAlpha=Math.min(1,lapFlash.t);g.fillStyle="#fff";g.font="bold 22px system-ui";g.textAlign="center";g.fillText(lapFlash.text,W/2,140);g.globalAlpha=1;}
   if(phase==="count"){
     const n=Math.ceil(countT-.6);
     g.fillStyle="#ffb020";g.font="900 120px system-ui";g.textAlign="center";
     g.fillText(n>0?String(n):"GO!",W/2,H/2);
     g.fillStyle="#eef1f7";g.font="15px system-ui";g.fillText("按住 空白鍵／螢幕 = 油門　紅色路段 = 該放開煞車",W/2,H/2+44);
   }else if(raceT<1.2){g.fillStyle="#3ddc84";g.font="900 90px system-ui";g.textAlign="center";g.fillText("GO!",W/2,H/2);}
+  if(paused){g.fillStyle="rgba(10,12,18,.65)";g.fillRect(0,48,W,H-48);g.fillStyle="#fff";g.font="900 44px system-ui";g.textAlign="center";g.fillText("暫停",W/2,H/2-6);g.font="15px system-ui";g.fillStyle="#8f9ab3";g.fillText("按 P／Esc／點一下畫面 繼續",W/2,H/2+30);}
 }
 
 // ============ 主迴圈 ============
 let last=performance.now(),lastBeep=0;
 function loop(now){
   let dt=Math.min(.033,(now-last)/1000);last=now;
+  if(paused)dt=0;
   if(phase==="count"){
     const before=Math.ceil(countT-.6);countT-=dt;
     const after=Math.ceil(countT-.6);
     if(after!==before&&after>0)beep(440,.08);
     if(countT<=.6){phase="race";beep(880,.25);}
   }
-  if(phase==="race"||phase==="finishing"){
+  if(!paused&&(phase==="race"||phase==="finishing")){
     raceT+=dt;
     for(const c of cars)stepCar(c,dt);
     if(phase==="race"&&player.fin!==null){phase="finishing";setTimeout(showResult,1100);}
   }
+  lapFlash.t-=dt;
   for(const p of particles){p.t-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;}
   particles=particles.filter(p=>p.t>0);
   document.getElementById("throttle").classList.toggle("on",btnDown);
   engineUpdate();
+  $("pause").style.display=(phase==="count"||phase==="race")?"block":"none";
   $("mute").style.display=(phase==="garage"||phase==="result")?"none":"block";
   render();
   requestAnimationFrame(loop);
@@ -417,18 +442,20 @@ function showResult(){
   });
   const rank=order.indexOf(player)+1;
   const tr=TRACKS[save.track];
-  const prize=Math.round([300,180,100,80][rank-1]*tr.prize);
+  const prize=isPractice?0:Math.round([300,180,100,80][rank-1]*tr.prize);
   save.coins+=prize;
   const t=player.fin,bk=String(save.track);
   let newBest=false;const prev=save.best[bk];if(!prev||t<prev){save.best[bk]=t;newBest=!!prev;}
+  const bl=Math.min(...player.laps),pbl=save.bestLap[bk];let newLap=false;
+  if(!pbl||bl<pbl){save.bestLap[bk]=bl;newLap=!!pbl;}
   persist();
-  document.getElementById("rank").textContent=["🥇 第 1 名","🥈 第 2 名","🥉 第 3 名","第 4 名"][rank-1];
+  document.getElementById("rank").textContent=isPractice?"練習完成 ✅":["🥇 第 1 名","🥈 第 2 名","🥉 第 3 名","第 4 名"][rank-1];
   document.getElementById("rank").style.color=rank===1?"#ffb020":"#eef1f7";
-  document.getElementById("rtime").textContent=`完賽時間 ${t.toFixed(2)}s`+(newBest?"　🎉 新紀錄！":"")+`　飛出 ${player.crashes} 次`;
-  document.getElementById("rtable").innerHTML=order.map((c,i)=>`<tr style="${c.human?"background:#2d2a1c;font-weight:800":""}"><td>${i+1}</td><td style="color:${c.color}">● ${c.name}${c.human?" ◀":""}</td><td style="text-align:right">${c.fin!==null?c.fin.toFixed(2)+"s":"—"}</td></tr>`).join("");
+  document.getElementById("rtime").textContent=`完賽時間 ${t.toFixed(2)}s`+(newBest?"　🎉 新紀錄！":"")+`　最佳圈 ${bl.toFixed(2)}s`+(newLap?" ★":"")+`　飛出 ${player.crashes} 次`;
+  document.getElementById("rtable").innerHTML=isPractice?player.laps.map((l,i)=>`<tr><td>第 ${i+1} 圈</td><td style="text-align:right">${l.toFixed(2)}s${l===bl?" ★":""}</td></tr>`).join(""):order.map((c,i)=>`<tr style="${c.human?"background:#2d2a1c;font-weight:800":""}"><td>${i+1}</td><td style="color:${c.color}">● ${c.name}${c.human?" ◀":""}</td><td style="text-align:right">${c.fin!==null?c.fin.toFixed(2)+"s":"—"}</td></tr>`).join("");
   const Q={1:["冠軍！這台車該進博物館了 🏆","漂亮，AI 們正在檢討自己的馬達。"],2:["差一點點！下次把輪胎換軟一點？","銀牌很香，但金牌更香。"],3:["季軍。去車庫逛逛，買點好東西吧。","還行，至少沒有飛出場外。"],4:["最後一名…試試單層滾輪，穩住再衝。","別氣餒，車庫裡有零件在召喚你。"]}[rank];
-  document.getElementById("quip").textContent=(player.crashes===0&&rank===1?"零失誤完美賽！ ":"")+Q[Math.floor(Math.random()*Q.length)];
-  document.getElementById("prize").textContent="+"+prize+" 💰";
+  document.getElementById("quip").textContent=isPractice?"沒有對手，專心找每個彎的煞車點。":(player.crashes===0&&rank===1?"零失誤完美賽！ ":"")+Q[Math.floor(Math.random()*Q.length)];
+  document.getElementById("prize").textContent=isPractice?"練習模式不給獎金":"+"+prize+" 💰";
   show("result");
 }
 
@@ -452,7 +479,7 @@ function renderGarage(){
   const st=playerStats(),lim=limitOf(st);
   const rows=[["極速",st.vmax/540],["加速",st.acc/450],["抓地",st.grip/10],["穩定",st.stab/10],["彎道極限",lim/2500]];
   $("stats").innerHTML=rows.map(([n,v])=>`<div class="s"><span>${n}</span><div class="bar"><i style="width:${Math.min(100,v*100)}%"></i></div></div>`).join("");
-  const b=save.best[String(save.track)];$("best").textContent=b?b.toFixed(2)+"s":"--";
+  const b=save.best[String(save.track)],bl=save.bestLap[String(save.track)];$("best").textContent=(b?b.toFixed(2)+"s":"--")+(bl?`・最佳圈 ${bl.toFixed(2)}s`:"");$("practice").checked=save.practice;
   const pc=$("preview").getContext("2d");pc.clearRect(0,0,240,130);
   pc.fillStyle="#2a3142";pc.fillRect(0,48,240,34);pc.fillStyle="#ff7a1a";pc.fillRect(0,44,240,4);pc.fillRect(0,82,240,4);
   drawCar(pc,120,65,0,save.eq.c,4.2,false);
@@ -481,6 +508,7 @@ $("garage").addEventListener("keydown",e=>{
     const el=document.querySelector("#garage "+sel);if(el)el.focus();
   }
 });
+$("practice").onchange=e=>{save.practice=e.target.checked;persist();};
 $("start").onclick=startRace;
 $("again").onclick=startRace;
 $("tog").onclick=()=>{hide("result");T=null;phase="garage";renderGarage();show("garage");$("throttle").style.display="none";};
@@ -488,11 +516,14 @@ $("tog").onclick=()=>{hide("result");T=null;phase="garage";renderGarage();show("
 // ============ 輸入 ============
 addEventListener("keydown",e=>{if(e.code==="Space"||e.code==="ArrowUp"){keyDown=true;e.preventDefault();}});
 addEventListener("keyup",e=>{if(e.code==="Space"||e.code==="ArrowUp"){keyDown=false;if(phase==="count"||phase==="race"||phase==="finishing")e.preventDefault();}});
-cv.addEventListener("pointerdown",e=>{ptrDown=true;});
+cv.addEventListener("pointerdown",e=>{if(paused){togglePause();return;}ptrDown=true;});
+$("pause").onclick=togglePause;
+addEventListener("keydown",e=>{if(e.code==="KeyP"||e.code==="Escape")togglePause();});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&!paused)togglePause();});
 addEventListener("pointerup",()=>{ptrDown=false;btnDown=false;});
 addEventListener("pointercancel",()=>{ptrDown=false;btnDown=false;});
 $("throttle").addEventListener("pointerdown",e=>{btnDown=true;e.preventDefault();});
-addEventListener("blur",()=>{keyDown=ptrDown=btnDown=false;});
+addEventListener("blur",()=>{keyDown=ptrDown=btnDown=false;if(!paused)togglePause();});
 
 // ============ 音效 ============
 let ac=null,muted=false;
@@ -524,12 +555,13 @@ function engineStart(){
 }
 function engineUpdate(){
   if(!eng)return;
-  const live=!muted&&player&&(phase==="race"||phase==="finishing")&&player.state==="run"&&player.fin===null,t=ac.currentTime;
+  const live=!muted&&!paused&&player&&(phase==="race"||phase==="finishing")&&player.state==="run"&&player.fin===null,t=ac.currentTime;
   eng.o.frequency.setTargetAtTime(70+(player?player.v:0)*.55,t,.05);
   eng.gn.gain.setTargetAtTime(live?(player.thr?.05:.022):0,t,.08);
   eng.ng.gain.setTargetAtTime(live&&player.ratio>.85?Math.min(.06,(player.ratio-.8)*.2):0,t,.05);
 }
-$("mute").onclick=()=>{muted=!muted;$("mute").textContent=muted?"🔇":"🔊";};
+const toggleMute=()=>{muted=!muted;$("mute").textContent=$("mute2").textContent=muted?"🔇":"🔊";};
+$("mute").onclick=toggleMute;$("mute2").onclick=toggleMute;
 
 renderGarage();
 </script>
