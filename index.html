@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>四驅車大賽 Mini 4WD Racer</title>
+<meta name="theme-color" content="#10131a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%2310131a%27/%3E%3Crect x=%274%27 y=%2711%27 width=%2724%27 height=%2710%27 rx=%274%27 fill=%27%23ffb020%27/%3E%3Crect x=%2718%27 y=%2713%27 width=%278%27 height=%276%27 rx=%272%27 fill=%27%23fff%27 opacity=%27.6%27/%3E%3C/svg%3E">
 <style>
 :root{--bg:#10131a;--panel:#1a1f2b;--panel2:#232a3a;--line:#2f3850;--fg:#eef1f7;--dim:#8f9ab3;--acc:#ffb020;--ok:#3ddc84;--bad:#ff4d5e}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -19,12 +21,13 @@ h2{margin:14px 0 8px;font-size:14px;color:var(--dim);font-weight:600;letter-spac
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .part{background:var(--panel2);border:2px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;min-width:140px;flex:1 1 140px;font-size:13px}
 .part b{display:block;font-size:14px;margin-bottom:2px}
-.part small{color:var(--dim)}
+.part small{color:var(--dim);font-size:12.5px}
+:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .part.sel{border-color:var(--acc);background:#2d2a1c}
 .part.lock{opacity:.75}
 .part.lock .price{color:var(--acc)}
 .part.nofund .price{color:var(--bad)}
-.swatch{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);cursor:pointer}
+.swatch{width:40px;height:40px;border-radius:50%;border:3px solid var(--line);cursor:pointer}
 .swatch.sel{border-color:#fff}
 .grid{display:grid;grid-template-columns:1fr 240px;gap:14px}
 @media(max-width:700px){.grid{grid-template-columns:1fr}}
@@ -49,7 +52,7 @@ td{padding:6px 8px;border-bottom:1px solid var(--line)}
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
+<canvas id="game" role="img" aria-label="四驅車賽道畫面：按住空白鍵或螢幕加速，放開煞車"></canvas>
 <button id="mute" title="音效">🔊</button>
 <div id="throttle">油門</div>
 
@@ -98,7 +101,8 @@ const LAPS = 3;
 const TRACKS = [
   {id:0,name:"新手環道",desc:"寬緩彎道",lvl:0,prize:1.0,pts:[[150,150],[450,100],[750,140],[880,260],[780,380],[560,330],[500,450],[640,560],[500,630],[250,600],[120,480],[250,380],[110,300]]},
   {id:1,name:"蛇行山道",desc:"連續 S 彎",lvl:1,prize:1.4,pts:[[120,120],[380,90],[500,200],[360,290],[560,380],[820,300],[900,450],[760,600],[520,520],[360,620],[140,580],[80,380],[200,260]]},
-  {id:2,name:"極限髮夾",desc:"高速+急彎",lvl:2,prize:2.0,pts:[[100,110],[620,80],[900,150],[920,330],[700,360],[900,470],[860,620],[560,640],[600,500],[380,560],[300,650],[110,620],[130,430],[330,330],[160,260]]}
+  {id:2,name:"極限髮夾",desc:"高速+急彎",lvl:2,prize:2.0,pts:[[100,110],[620,80],[900,150],[920,330],[700,360],[900,470],[860,620],[560,640],[600,500],[380,560],[300,650],[110,620],[130,430],[330,330],[160,260]]},
+  {id:3,name:"斷頭髮夾",desc:"長直線→U型髮夾→S彎",lvl:2,prize:2.2,pts:[[180,90],[400,72],[650,88],[830,115],[930,125],[985,190],[945,250],[850,262],[760,310],[680,390],[600,330],[510,400],[400,470],[250,520],[120,450],[85,300],[110,170]]}
 ];
 const MOTORS = [
   {id:"m0",name:"標準馬達",vmax:300,acc:240,cost:0},
@@ -211,6 +215,7 @@ function startRace(){
   phase="count";countT=3.6;raceT=0;particles=[];
   hide("garage");hide("result");
   document.getElementById("throttle").style.display=("ontouchstart" in window)?"flex":"none";
+  if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();
   engineStart();beep(440,.08);
 }
 
@@ -434,16 +439,16 @@ function hide(id){$(id).classList.remove("show");}
 function partCard(p,key,desc,extra){
   const own=save.owned.includes(p.id),sel=save.eq[key]===p.id;
   const cls=["part",sel?"sel":"",own?"":"lock",(!own&&save.coins<p.cost)?"nofund":""].join(" ");
-  return `<div class="${cls}" data-k="${key}" data-id="${p.id}"><b>${p.name}</b><small>${desc}</small><div class="price">${own?(sel?"✔ 已裝備":"已擁有"):"💰 "+p.cost}</div></div>`;
+  return `<div class="${cls}" role="button" tabindex="0" aria-pressed="${sel}" data-k="${key}" data-id="${p.id}"><b>${p.name}</b><small>${desc}</small><div class="price">${own?(sel?"✔ 已裝備":"已擁有"):"💰 "+p.cost+(save.coins<p.cost?` · 還差 ${p.cost-save.coins}`:"")}</div></div>`;
 }
 function renderGarage(){
   $("coins").textContent="💰 "+save.coins;
-  $("tracks").innerHTML=TRACKS.map(t=>`<div class="part ${save.track===t.id?"sel":""}" data-tr="${t.id}"><b>${t.name}</b><small>${t.desc}・獎金×${t.prize}</small></div>`).join("");
+  $("tracks").innerHTML=TRACKS.map(t=>`<div class="part ${save.track===t.id?"sel":""}" role="button" tabindex="0" aria-pressed="${save.track===t.id}" data-tr="${t.id}"><b>${t.name}</b><small>${t.desc}・獎金×${t.prize}</small></div>`).join("");
   $("motors").innerHTML=MOTORS.map(p=>partCard(p,"m",`極速 ${p.vmax}・加速 ${p.acc}`)).join("");
   $("tires").innerHTML=TIRES.map(p=>partCard(p,"t",`抓地 ${p.grip}・速度×${p.mul}`)).join("");
   $("rollers").innerHTML=ROLLERS.map(p=>partCard(p,"r",`穩定 ${p.stab}・速度×${p.mul}`)).join("");
   $("fxs").innerHTML=FX.map(p=>partCard(p,"f",p.d)).join("");
-  $("colors").innerHTML=COLORS.map(c=>`<div class="swatch ${save.eq.c===c?"sel":""}" data-c="${c}" style="background:${c}"></div>`).join("");
+  $("colors").innerHTML=COLORS.map(c=>`<div class="swatch ${save.eq.c===c?"sel":""}" role="button" tabindex="0" aria-label="車身顏色 ${c}" aria-pressed="${save.eq.c===c}" data-c="${c}" style="background:${c}"></div>`).join("");
   const st=playerStats(),lim=limitOf(st);
   const rows=[["極速",st.vmax/540],["加速",st.acc/450],["抓地",st.grip/10],["穩定",st.stab/10],["彎道極限",lim/2500]];
   $("stats").innerHTML=rows.map(([n,v])=>`<div class="s"><span>${n}</span><div class="bar"><i style="width:${Math.min(100,v*100)}%"></i></div></div>`).join("");
@@ -466,13 +471,23 @@ $("garage").addEventListener("click",e=>{
   }
   persist();renderGarage();
 });
+$("garage").addEventListener("keydown",e=>{
+  if((e.key==="Enter"||e.code==="Space")&&e.target.matches("[data-k],[data-tr],[data-c]")){
+    e.preventDefault();
+    const k=e.target.dataset.k,id=e.target.dataset.id,tr=e.target.dataset.tr,c=e.target.dataset.c;
+    e.target.click();
+    // 重繪後把焦點還給同一個項目，鍵盤使用者才不會被丟回頁首
+    const sel=k?`[data-k="${k}"][data-id="${id}"]`:tr!==undefined?`[data-tr="${tr}"]`:`[data-c="${c}"]`;
+    const el=document.querySelector("#garage "+sel);if(el)el.focus();
+  }
+});
 $("start").onclick=startRace;
 $("again").onclick=startRace;
 $("tog").onclick=()=>{hide("result");T=null;phase="garage";renderGarage();show("garage");$("throttle").style.display="none";};
 
 // ============ 輸入 ============
 addEventListener("keydown",e=>{if(e.code==="Space"||e.code==="ArrowUp"){keyDown=true;e.preventDefault();}});
-addEventListener("keyup",e=>{if(e.code==="Space"||e.code==="ArrowUp")keyDown=false;});
+addEventListener("keyup",e=>{if(e.code==="Space"||e.code==="ArrowUp"){keyDown=false;if(phase==="count"||phase==="race"||phase==="finishing")e.preventDefault();}});
 cv.addEventListener("pointerdown",e=>{ptrDown=true;});
 addEventListener("pointerup",()=>{ptrDown=false;btnDown=false;});
 addEventListener("pointercancel",()=>{ptrDown=false;btnDown=false;});
