@@ -15,6 +15,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:
 h1{margin:0 0 4px;font-size:24px}
 h2{margin:14px 0 8px;font-size:14px;color:var(--dim);font-weight:600;letter-spacing:.05em}
 .sub{color:var(--dim);font-size:13px;margin-bottom:6px}
+.tip{background:#2d2a1c;border:1px solid #5a4a1c;border-radius:8px;padding:6px 10px;font-size:12.5px;margin:6px 0;color:#ffd98a}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .part{background:var(--panel2);border:2px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;min-width:140px;flex:1 1 140px;font-size:13px}
 .part b{display:block;font-size:14px;margin-bottom:2px}
@@ -53,12 +54,14 @@ td{padding:6px 8px;border-bottom:1px solid var(--line)}
     <span class="coins" id="coins"></span>
     <h1>🏎️ 四驅車大賽</h1>
     <div class="sub">改裝你的四驅車 → 衝線。<b>按住 空白鍵 / 滑鼠 / 螢幕 = 全速，放開 = 煞車</b>。進彎太快「彎道負荷」爆表就會飛出賽道！</div>
+    <div class="tip">💡 新手提示：比賽時路面會亮<b style="color:#ff6b78">紅色＝現在就該煞車</b>、<b style="color:#ffc95a">黃色＝前方有彎</b>。放開油門煞車，過彎後再按住。</div>
     <div class="grid">
       <div>
         <h2>賽道</h2><div class="row" id="tracks"></div>
         <h2>馬達</h2><div class="row" id="motors"></div>
         <h2>輪胎</h2><div class="row" id="tires"></div>
         <h2>滾輪（穩定度）</h2><div class="row" id="rollers"></div>
+        <h2>尾跡特效（純裝飾・金幣出口）</h2><div class="row" id="fxs"></div>
         <h2>車身顏色</h2><div class="row" id="colors"></div>
       </div>
       <div>
@@ -75,6 +78,7 @@ td{padding:6px 8px;border-bottom:1px solid var(--line)}
   <div class="card" style="width:min(460px,100%)">
     <div class="sub">比賽結果</div>
     <div class="res" id="rank"></div>
+    <div id="quip" style="font-size:15px;margin-bottom:4px"></div>
     <div id="rtime" class="sub"></div>
     <table id="rtable"></table>
     <div style="font-size:16px">獲得獎金 <b style="color:var(--acc)" id="prize"></b></div>
@@ -110,14 +114,21 @@ const ROLLERS = [
   {id:"r2",name:"雙層滾輪",stab:7,mul:.975,cost:240},
   {id:"r3",name:"圓盤斜坡滾輪",stab:10,mul:.95,cost:480}
 ];
+const FX = [
+  {id:"f0",name:"無特效",cost:0,d:"—"},
+  {id:"f1",name:"橘色火花尾",cost:150,d:"高速噴火花"},
+  {id:"f2",name:"霓虹青尾跡",cost:300,d:"青色光軌"},
+  {id:"f3",name:"彩虹尾跡",cost:500,d:"七彩光軌"}
+];
 const COLORS = ["#e5322d","#2d7de5","#27b36a","#f2c200","#a64de0","#ff7a1a","#14c8d6","#f0f0f0"];
 const AI_NAMES = ["紅閃電","藍旋風","綠獵豹"];
 const AI_COLORS = ["#e5322d","#2d7de5","#27b36a"];
 
 // ============ 存檔 ============
 const SAVE_KEY = "mini4wd-racer-v1";
-let save = {coins:300,owned:["m0","t0","r0"],eq:{m:"m0",t:"t0",r:"r0",c:COLORS[0]},best:{},track:0};
+let save = {coins:300,owned:["m0","t0","r0","f0"],eq:{m:"m0",t:"t0",r:"r0",c:COLORS[0],fx:"f0"},best:{},track:0};
 try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s&&s.eq) save=Object.assign(save,s);}catch(e){}
+save.eq.fx=save.eq.fx||"f0";if(!save.owned.includes("f0"))save.owned.push("f0");
 function persist(){ try{localStorage.setItem(SAVE_KEY,JSON.stringify(save));}catch(e){} }
 const byId=(arr,id)=>arr.find(x=>x.id===id)||arr[0];
 
@@ -191,10 +202,11 @@ function startRace(){
   phase="count";countT=3.6;raceT=0;particles=[];
   hide("garage");hide("result");
   document.getElementById("throttle").style.display=("ontouchstart" in window)?"flex":"none";
-  beep(440,.08);
+  engineStart();beep(440,.08);
 }
 
 // ============ 物理 ============
+const SHOUTS=["哇啊啊啊～","衝出去啦！","我的馬達！","媽，我飛起來了","轉彎是什麼？","煞車在哪？","別看我…"];
 const BRAKE=560, DECEL_AI=480;
 function ctl(c){
   if(c.human) return keyDown||ptrDown||btnDown;
@@ -228,9 +240,14 @@ function stepCar(c,dt){
     c.state="crash";c.ct=1.5;c.crashes++;c.cx=Q.x;c.cy=Q.y;
     // 沿切線飛出並向彎外側
     c.cvx=Q.tx*c.v*.9;c.cvy=Q.ty*c.v*.9;c.cang=Q.a;c.spin=(Math.random()<.5?-1:1)*(8+Math.random()*6);
-    c.v=0;
+    c.v=0;c.shout=SHOUTS[Math.floor(Math.random()*SHOUTS.length)];
     for(let i=0;i<14;i++)particles.push({x:c.cx,y:c.cy,vx:(Math.random()-.5)*260,vy:(Math.random()-.5)*260,t:.6,c:"#ffb020"});
     if(c.human)beep(120,.25,"sawtooth");
+  }
+  if(c.human&&save.eq.fx!=="f0"&&c.v>120&&Math.random()<.9){
+    const B=at(T,c.s-12,c.lane),f=save.eq.fx;
+    const col=f==="f1"?(Math.random()<.5?"#ff9d2e":"#ffd34d"):f==="f2"?"#33e6ff":`hsl(${(raceT*360)%360},95%,60%)`;
+    particles.push({x:B.x,y:B.y,vx:0,vy:0,t:.5,c:col,z:f==="f1"?2.5:4});
   }
   if(c.s>=LAPS*T.L){c.fin=raceT;if(c.human)beep(880,.3);}
 }
@@ -274,17 +291,33 @@ function render(){
   }
   g.save();g.translate(OX,OY);g.scale(SC,SC);
   drawTrack(T);
+  drawBrakeZones();
   const sorted=[...cars].sort((a,b)=>a.s-b.s);
   for(const c of sorted){
-    if(c.state==="crash"){drawCar(g,c.cx,c.cy,c.cang,c.color,1.6,false);continue;}
+    if(c.state==="crash"){drawCar(g,c.cx,c.cy,c.cang,c.color,1.6,false);g.fillStyle="#fff";g.font="bold 14px system-ui";g.textAlign="center";g.fillText(c.shout||"",c.cx,c.cy-18);continue;}
     const P=at(T,c.s,c.lane);
     drawCar(g,P.x,P.y,P.a,c.color,1.6,c.human);
     if(c.human){g.fillStyle="#fff";g.font="bold 13px system-ui";g.textAlign="center";g.fillText("▼ 你",P.x,P.y-16);}
   }
-  for(const p of particles){g.globalAlpha=Math.max(0,p.t*2);g.fillStyle=p.c;g.fillRect(p.x-1.5,p.y-1.5,3,3);}
+  for(const p of particles){g.globalAlpha=Math.max(0,p.t*2);g.fillStyle=p.c;const z=p.z||3;g.fillRect(p.x-z/2,p.y-z/2,z,z);}
   g.globalAlpha=1;
   g.restore();
   drawHUD();
+}
+function drawBrakeZones(){
+  if(phase!=="race"||!player||player.state!=="run")return;
+  const v=player.v,f0=Math.floor(((player.s/T.ds)%T.K+T.K)%T.K);
+  const reach=Math.ceil((v*v/(2*BRAKE)+110)/T.ds*1.5);
+  g.lineCap="butt";g.lineWidth=40;
+  for(let k=6;k<reach;k+=4){
+    const i=(f0+k)%T.K,j=(i+4)%T.K,d=k*T.ds;
+    const vreq=Math.sqrt(player.limit*.98/Math.max(T.kap[i],1e-4));
+    const must=Math.sqrt(vreq*vreq+2*BRAKE*d)<v;
+    if(!must&&vreq>player.vmax*1.02)continue;
+    g.strokeStyle=must?"rgba(255,77,94,.55)":"rgba(255,201,90,.28)";
+    g.beginPath();g.moveTo(T.X[i],T.Y[i]);g.lineTo(T.X[j],T.Y[j]);g.stroke();
+  }
+  g.lineCap="round";
 }
 let backdropT=null;
 function drawBackdrop(){
@@ -324,6 +357,7 @@ function drawHUD(){
     const n=Math.ceil(countT-.6);
     g.fillStyle="#ffb020";g.font="900 120px system-ui";g.textAlign="center";
     g.fillText(n>0?String(n):"GO!",W/2,H/2);
+    g.fillStyle="#eef1f7";g.font="15px system-ui";g.fillText("按住 空白鍵／螢幕 = 油門　紅色路段 = 該放開煞車",W/2,H/2+44);
   }else if(raceT<1.2){g.fillStyle="#3ddc84";g.font="900 90px system-ui";g.textAlign="center";g.fillText("GO!",W/2,H/2);}
 }
 
@@ -345,6 +379,7 @@ function loop(now){
   for(const p of particles){p.t-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;}
   particles=particles.filter(p=>p.t>0);
   document.getElementById("throttle").classList.toggle("on",btnDown);
+  engineUpdate();
   render();
   requestAnimationFrame(loop);
 }
@@ -370,6 +405,8 @@ function showResult(){
   document.getElementById("rank").style.color=rank===1?"#ffb020":"#eef1f7";
   document.getElementById("rtime").textContent=`完賽時間 ${t.toFixed(2)}s`+(newBest?"　🎉 新紀錄！":"")+`　飛出 ${player.crashes} 次`;
   document.getElementById("rtable").innerHTML=order.map((c,i)=>`<tr><td>${i+1}</td><td style="color:${c.color}">● ${c.name}</td><td style="text-align:right">${c.fin!==null?c.fin.toFixed(2)+"s":"—"}</td></tr>`).join("");
+  const Q={1:["冠軍！這台車該進博物館了 🏆","漂亮，AI 們正在檢討自己的馬達。"],2:["差一點點！下次把輪胎換軟一點？","銀牌很香，但金牌更香。"],3:["季軍。去車庫逛逛，買點好東西吧。","還行，至少沒有飛出場外。"],4:["最後一名…試試單層滾輪，穩住再衝。","別氣餒，車庫裡有零件在召喚你。"]}[rank];
+  document.getElementById("quip").textContent=(player.crashes===0&&rank===1?"零失誤完美賽！ ":"")+Q[Math.floor(Math.random()*Q.length)];
   document.getElementById("prize").textContent="+"+prize+" 💰";
   show("result");
 }
@@ -389,6 +426,7 @@ function renderGarage(){
   $("motors").innerHTML=MOTORS.map(p=>partCard(p,"m",`極速 ${p.vmax}・加速 ${p.acc}`)).join("");
   $("tires").innerHTML=TIRES.map(p=>partCard(p,"t",`抓地 ${p.grip}・速度×${p.mul}`)).join("");
   $("rollers").innerHTML=ROLLERS.map(p=>partCard(p,"r",`穩定 ${p.stab}・速度×${p.mul}`)).join("");
+  $("fxs").innerHTML=FX.map(p=>partCard(p,"f",p.d)).join("");
   $("colors").innerHTML=COLORS.map(c=>`<div class="swatch ${save.eq.c===c?"sel":""}" data-c="${c}" style="background:${c}"></div>`).join("");
   const st=playerStats(),lim=limitOf(st);
   const rows=[["極速",st.vmax/540],["加速",st.acc/450],["抓地",st.grip/10],["穩定",st.stab/10],["彎道極限",lim/2500]];
@@ -403,7 +441,7 @@ $("garage").addEventListener("click",e=>{
   if(el.dataset.tr!==undefined){save.track=+el.dataset.tr;}
   else if(el.dataset.c){save.eq.c=el.dataset.c;}
   else{
-    const key=el.dataset.k,id=el.dataset.id,list={m:MOTORS,t:TIRES,r:ROLLERS}[key],p=byId(list,id);
+    const key=el.dataset.k,id=el.dataset.id,list={m:MOTORS,t:TIRES,r:ROLLERS,f:FX}[key],p=byId(list,id);
     if(!save.owned.includes(id)){
       if(save.coins<p.cost){beep(150,.15,"square");return;}
       save.coins-=p.cost;save.owned.push(id);beep(660,.1);
@@ -436,6 +474,29 @@ function beep(f,d,type){
     gn.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);
     o.connect(gn);gn.connect(ac.destination);o.start();o.stop(ac.currentTime+d);
   }catch(e){}
+}
+let eng=null;
+function engineStart(){
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume();
+    if(eng)return;
+    const o=ac.createOscillator(),lp=ac.createBiquadFilter(),gn=ac.createGain();
+    o.type="sawtooth";lp.type="lowpass";lp.frequency.value=650;gn.gain.value=0;
+    o.connect(lp);lp.connect(gn);gn.connect(ac.destination);o.start();
+    const buf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate),d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    const ns=ac.createBufferSource();ns.buffer=buf;ns.loop=true;
+    const bp=ac.createBiquadFilter();bp.type="bandpass";bp.frequency.value=2400;bp.Q.value=1.5;
+    const ng=ac.createGain();ng.gain.value=0;ns.connect(bp);bp.connect(ng);ng.connect(ac.destination);ns.start();
+    eng={o,gn,ng};
+  }catch(e){}
+}
+function engineUpdate(){
+  if(!eng)return;
+  const live=!muted&&player&&(phase==="race"||phase==="finishing")&&player.state==="run"&&player.fin===null,t=ac.currentTime;
+  eng.o.frequency.setTargetAtTime(70+(player?player.v:0)*.55,t,.05);
+  eng.gn.gain.setTargetAtTime(live?(player.thr?.05:.022):0,t,.08);
+  eng.ng.gain.setTargetAtTime(live&&player.ratio>.85?Math.min(.06,(player.ratio-.8)*.2):0,t,.05);
 }
 $("mute").onclick=()=>{muted=!muted;$("mute").textContent=muted?"🔇":"🔊";};
 
