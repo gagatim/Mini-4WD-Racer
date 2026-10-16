@@ -41,7 +41,8 @@ table{width:100%;border-collapse:collapse;margin:8px 0;font-size:15px}
 td{padding:6px 8px;border-bottom:1px solid var(--line)}
 .startwrap{margin-top:14px}
 .startwrap .go{margin-top:0}
-@media(max-width:700px){.startwrap{position:sticky;bottom:-18px;background:linear-gradient(rgba(26,31,43,0),var(--panel) 35%);padding:16px 0 6px;z-index:3}.startwrap .go{width:100%}}
+.startwrap{position:sticky;bottom:-18px;background:linear-gradient(rgba(26,31,43,0),var(--panel) 35%);padding:16px 0 6px;z-index:3;text-align:right}
+@media(max-width:700px){.startwrap .go{width:100%}}
 #throttle{position:fixed;right:14px;bottom:14px;width:92px;height:92px;border-radius:50%;background:rgba(255,176,32,.85);color:#1a1200;font-weight:900;font-size:15px;display:none;align-items:center;justify-content:center;border:4px solid #fff3;touch-action:none}
 #throttle.on{background:var(--ok)}
 #mute{position:fixed;top:8px;right:8px;background:#0006;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:5px 9px;font-size:14px;cursor:pointer;z-index:5}
@@ -72,9 +73,9 @@ td{padding:6px 8px;border-bottom:1px solid var(--line)}
         <div class="stats" id="stats"></div>
         <div class="sub" style="margin-top:6px">抓地＋穩定越高，「彎道極限」越高；用超過極限的速度過彎就會飛出去。</div>
         <div class="sub" style="margin-top:10px">🏆 本賽道最佳：<b id="best">--</b></div>
-        <div class="startwrap"><button class="go" id="start">開始比賽 ▶</button></div>
-      </div>
+        </div>
     </div>
+    <div class="startwrap"><button class="go" id="start">開始比賽 ▶</button></div>
   </div>
 </div>
 
