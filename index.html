@@ -455,7 +455,7 @@ function showResult(){
   document.getElementById("rtable").innerHTML=isPractice?player.laps.map((l,i)=>`<tr><td>第 ${i+1} 圈</td><td style="text-align:right">${l.toFixed(2)}s${l===bl?" ★":""}</td></tr>`).join(""):order.map((c,i)=>`<tr style="${c.human?"background:#2d2a1c;font-weight:800":""}"><td>${i+1}</td><td style="color:${c.color}">● ${c.name}${c.human?" ◀":""}</td><td style="text-align:right">${c.fin!==null?c.fin.toFixed(2)+"s":"—"}</td></tr>`).join("");
   const Q={1:["冠軍！這台車該進博物館了 🏆","漂亮，AI 們正在檢討自己的馬達。"],2:["差一點點！下次把輪胎換軟一點？","銀牌很香，但金牌更香。"],3:["季軍。去車庫逛逛，買點好東西吧。","還行，至少沒有飛出場外。"],4:["最後一名…試試單層滾輪，穩住再衝。","別氣餒，車庫裡有零件在召喚你。"]}[rank];
   document.getElementById("quip").textContent=isPractice?"沒有對手，專心找每個彎的煞車點。":(player.crashes===0&&rank===1?"零失誤完美賽！ ":"")+Q[Math.floor(Math.random()*Q.length)];
-  document.getElementById("prize").textContent=isPractice?"練習模式不給獎金":"+"+prize+" 💰";
+  document.getElementById("prize").textContent=isPractice?"0（練習模式）":"+"+prize+" 💰";
   show("result");
 }
 
